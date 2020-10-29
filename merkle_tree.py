@@ -1,4 +1,5 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional
+import sys
 import random
 import hashlib
 
@@ -32,46 +33,66 @@ class Node(BaseNode):
         self.transactions.append(tx)
 
     def build_merkle_root(self):
-        def make(txs: List[Transaction]) -> str:
-            if len(txs) == 1:
-                tx_hash = self.get_transaction_hash(txs[0])
-                print("tx->", txs[0].txid, tx_hash)
-                return tx_hash
+        def make(txs: List[Transaction]) -> Tuple[str, str]:
+            if len(txs) == 0:
+                return "", ""
+            elif len(txs) == 1:
+                left_hash = self.get_transaction_hash(txs[0])
+                return left_hash, left_hash
+            elif len(txs) == 2:
+                left_hash = self.get_transaction_hash(txs[0])
+                right_hash = self.get_transaction_hash(txs[1])
+                return left_hash, right_hash
             else:
                 half_pointer = int(len(txs) / 2)
-                left_hash = make(txs[half_pointer:])
-                right_hash = make(txs[:half_pointer])
-                root_hash = self.get_hash(left_hash + right_hash)
-                print(root_hash)
-                return root_hash
+                left_hashes = make(txs[:half_pointer])
+                right_hashes = make(txs[half_pointer:])
 
-        self.merkle_root = make(self.transactions)
+                left_hash = self.get_hash(left_hashes[0] + left_hashes[1])
+                right_hash = self.get_hash(right_hashes[0] + right_hashes[1])
+                return left_hash, right_hash
+
+        left_hash, right_hash = make(self.transactions)
+        self.merkle_root = self.get_hash(left_hash + right_hash)
 
     def get_merkle_path(self, txid: str) -> List[str]:
         def make(txs: List[Transaction]) -> Tuple[str, bool, List[str]]:
-            if len(txs) == 1:
-                tx_hash = self.get_transaction_hash(txs[0])
+            if len(txs) == 0:
+                return "", False, []
+            elif len(txs) == 1:
+                left_hash = self.get_transaction_hash(txs[0])
+                root_hash = self.get_hash(left_hash + left_hash)
                 if txs[0].txid == txid:
-                    return tx_hash, True, []
+                    return root_hash, True, ["L" + left_hash]
                 else:
-                    return tx_hash, False, []
+                    return root_hash, False, []
+            elif len(txs) == 2:
+                left_hash = self.get_transaction_hash(txs[0])
+                right_hash = self.get_transaction_hash(txs[1])
+                root_hash = self.get_hash(left_hash + right_hash)
+                if txs[0].txid == txid:
+                    return root_hash, True, ["R" + right_hash]
+                elif txs[1].txid == txid:
+                    return root_hash, True, ["L" + left_hash]
+                else:
+                    return root_hash, False, []
             else:
                 half_pointer = int(len(txs) / 2)
-                left_hash, left_exists, left_path = make(txs[half_pointer:])
-                right_hash, right_exists, right_path = make(txs[:half_pointer])
+                left_hash, left_exists, left_path = make(txs[:half_pointer])
+                right_hash, right_exists, right_path = make(txs[half_pointer:])
                 root_hash = self.get_hash(left_hash + right_hash)
 
                 if left_exists == True:
-                    left_path += ["R"+right_hash]
+                    left_path += ["R" + right_hash]
                     return root_hash, True, left_path
-
-                if right_exists == True:
-                    right_path += ["L"+left_hash]
+                elif right_exists == True:
+                    right_path += ["L" + left_hash]
                     return root_hash, True, right_path
 
                 return root_hash, False, []
 
         _, _, merkle_path = make(self.transactions)
+
         return merkle_path
 
 
@@ -99,7 +120,7 @@ if __name__ == "__main__":
 
     random_transactions = [
         Transaction(str(i), round(random.uniform(1, 100), 2))
-        for i in range(1, 9)
+        for i in range(1, random.randint(5, 50))
     ]
 
     for tx in random_transactions:
@@ -111,7 +132,11 @@ if __name__ == "__main__":
 
     print("Merkle Root:", full_node.merkle_root)
 
-    valid_transaction = random.choice(random_transactions)
+    try:
+        valid_transaction = random.choice(random_transactions)
+    except IndexError:
+        sys.exit(1)
+
     print(
         "Merkle Path of a valid transaction:",
         full_node.get_merkle_path(valid_transaction.txid)
