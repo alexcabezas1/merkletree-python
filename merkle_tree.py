@@ -58,40 +58,40 @@ class Node(BaseNode):
     def get_merkle_path(self, txid: str) -> List[str]:
         def make(txs: List[Transaction]) -> Tuple[str, bool, List[str]]:
             if len(txs) == 0:
-                return "", False, []
+                return "", []
             elif len(txs) == 1:
                 left_hash = self.get_transaction_hash(txs[0])
                 root_hash = self.get_hash(left_hash + left_hash)
                 if txs[0].txid == txid:
-                    return root_hash, True, ["L" + left_hash]
+                    return root_hash, ["L" + left_hash]
                 else:
-                    return root_hash, False, []
+                    return root_hash, []
             elif len(txs) == 2:
                 left_hash = self.get_transaction_hash(txs[0])
                 right_hash = self.get_transaction_hash(txs[1])
                 root_hash = self.get_hash(left_hash + right_hash)
                 if txs[0].txid == txid:
-                    return root_hash, True, ["R" + right_hash]
+                    return root_hash, ["R" + right_hash]
                 elif txs[1].txid == txid:
-                    return root_hash, True, ["L" + left_hash]
+                    return root_hash, ["L" + left_hash]
                 else:
-                    return root_hash, False, []
+                    return root_hash, []
             else:
                 half_pointer = int(len(txs) / 2)
-                left_hash, left_exists, left_path = make(txs[:half_pointer])
-                right_hash, right_exists, right_path = make(txs[half_pointer:])
+                left_hash, left_path = make(txs[:half_pointer])
+                right_hash, right_path = make(txs[half_pointer:])
                 root_hash = self.get_hash(left_hash + right_hash)
 
-                if left_exists == True:
+                if len(left_path) > 0:
                     left_path += ["R" + right_hash]
-                    return root_hash, True, left_path
-                elif right_exists == True:
+                    return root_hash, left_path
+                elif len(right_path) > 0:
                     right_path += ["L" + left_hash]
-                    return root_hash, True, right_path
+                    return root_hash, right_path
 
-                return root_hash, False, []
+                return root_hash, []
 
-        _, _, merkle_path = make(self.transactions)
+        _, merkle_path = make(self.transactions)
 
         return merkle_path
 
